@@ -129,6 +129,39 @@ Build the IDP control plane: a Go API reading Kubernetes state, a simple ops das
 
 ---
 
+## Phase 4.5 — Self-Service Layer (2–3 weekends)
+
+Empower developers to provision and manage their own services without platform team involvement. Turn the ops API into a true IDP.
+
+**Service templates**
+- Go module templates for Go+NATS service
+- Scaffold generator: `aeroctl service create --name my-service --template go-nats`
+- Creates service directory structure, Dockerfile, Kubernetes manifests, basic handlers
+- Templates include stub messaging, `/health`, `/metrics`, NATS subscription
+
+**Self-service provisioning**
+- `aeroctl namespace create [squad-name]` — creates namespace with ResourceQuota, LimitRange, ServiceAccount
+- Auto-provision NATS consumer groups per service
+- Auto-wire RBAC: service SA can only read its configmap and write NATS
+- Generate ConfigMap with cluster endpoints (NATS, prometheus, etc)
+
+**Deployment workflow**
+- `aeroctl service deploy --service my-service --image [tag]`
+- Validates image exists in registry
+- Patches Deployment in target namespace
+- Waits for rollout, reports status
+- Integrates with seed program for smoke tests
+
+**Developer dashboard enhancements**
+- "New service" button that guides through scaffold + provisioning
+- Service quick-links: logs, metrics, traces, recent deployments
+- Event subscriptions per service: filter/subscribe to NATS streams
+- Cost estimate per service based on requests/limits
+
+**Phase complete when**: Developer can `aeroctl service create --name taxi-booking`, get a working service in a namespace, and `aeroctl service deploy` it with zero platform team involvement.
+
+---
+
 ## Phase 5 — Stretch Goals (ongoing)
 
 Pick from these once the core is solid. Each is a self-contained learning spike.
@@ -159,7 +192,8 @@ Pick from these once the core is solid. Each is a self-contained learning spike.
 - Weekends 3–4: full event chain, ingress, seed program
 - Weekends 5–8: full observability stack
 - Weekends 9–11: platform API, UI, aeroctl CLI
-- Weekend 12+: stretch goals as interest develops
+- Weekends 12–14: self-service layer (scaffold, provisioning, deployment workflow)
+- Weekend 15+: stretch goals as interest develops
 
 ---
 

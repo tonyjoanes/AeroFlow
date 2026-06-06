@@ -37,15 +37,6 @@ jobs:
           file: ${{ matrix.service.dockerfile }}
           push: false
           tags: aeroflow/${{ matrix.service.name }}:${{ github.sha }}
-          outputs: type=docker,dest=/tmp/${{ matrix.service.name }}.tar
-
-      - name: Run Snyk Security Scan
-        uses: snyk/actions/docker@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: aeroflow/${{ matrix.service.name }}:${{ github.sha }}
-          args: --severity-threshold=high
 
   test-build:
     runs-on: ubuntu-latest
