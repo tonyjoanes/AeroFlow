@@ -32,7 +32,7 @@ spec:
       containers:
         - name: nats
           image: nats:2-alpine
-          args: ["-c", "/etc/nats-config/nats-server.conf"]
+          args: ["-c", "/etc/nats-config/nats-server.conf", "-m", "8222"]
           ports:
             - name: client
               containerPort: 4222
