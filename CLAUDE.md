@@ -25,7 +25,7 @@ docs/                  project plan and notes
 ## Progress
 
 ### Phase 1 — Foundation
-- [ ] kind cluster + namespaces
+- [x] kind cluster config + namespaces written (deploy/cluster/) — run locally per deploy/README.md
 - [x] NATS JetStream + AEROFLOW stream (auto-created on connect; verified locally via Docker)
 - [x] Go monorepo module setup (single module rather than go.work — see note below)
 - [x] internal/messaging
@@ -34,7 +34,7 @@ docs/                  project plan and notes
 - [x] gate-service
 - [x] /health and /metrics on every service
 - [x] event chain verified locally end to end: flight lands → gate assigned, correlation IDs match
-- [ ] deploy manifests (Deployment, Service, ConfigMap, Secret, probes)
+- [x] deploy manifests (Deployment, Service, ConfigMap, probes, Dockerfiles) — see deploy/
 
 Note: used a single Go module for the monorepo rather than go.work + per-service
 modules — simpler for this size of project and `go.work` is gitignored anyway.

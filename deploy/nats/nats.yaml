@@ -1,0 +1,77 @@
+# Minimal single-node NATS with JetStream enabled, for local learning use.
+# A production setup would run a clustered StatefulSet with persistent volumes;
+# this is intentionally simple so the event chain has somewhere to talk to.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nats-config
+  namespace: platform
+data:
+  nats-server.conf: |
+    jetstream {
+      store_dir: /data
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats
+  namespace: platform
+  labels:
+    app: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: nats:2-alpine
+          args: ["-c", "/etc/nats-config/nats-server.conf"]
+          ports:
+            - name: client
+              containerPort: 4222
+            - name: monitor
+              containerPort: 8222
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats-config
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitor
+            initialDelaySeconds: 10
+      volumes:
+        - name: config
+          configMap:
+            name: nats-config
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nats
+  namespace: platform
+spec:
+  selector:
+    app: nats
+  ports:
+    - name: client
+      port: 4222
+      targetPort: client
+    - name: monitor
+      port: 8222
+      targetPort: monitor
