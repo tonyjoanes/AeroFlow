@@ -1,0 +1,31 @@
+# Namespaces for each squad/domain in the AeroFlow event chain, plus the
+# platform namespace for cross-cutting infrastructure (NATS, observability).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: flights
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: baggage
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gates
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ground-ops
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: notifications
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform
