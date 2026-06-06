@@ -26,14 +26,18 @@ docs/                  project plan and notes
 
 ### Phase 1 — Foundation
 - [ ] kind cluster + namespaces
-- [ ] NATS JetStream deployed, AEROFLOW stream
-- [ ] go.work monorepo setup
-- [ ] internal/messaging
-- [ ] internal/models
-- [ ] flight-service
-- [ ] gate-service
-- [ ] /health and /metrics on every service
+- [x] NATS JetStream + AEROFLOW stream (auto-created on connect; verified locally via Docker)
+- [x] Go monorepo module setup (single module rather than go.work — see note below)
+- [x] internal/messaging
+- [x] internal/models
+- [x] flight-service
+- [x] gate-service
+- [x] /health and /metrics on every service
+- [x] event chain verified locally end to end: flight lands → gate assigned, correlation IDs match
 - [ ] deploy manifests (Deployment, Service, ConfigMap, Secret, probes)
+
+Note: used a single Go module for the monorepo rather than go.work + per-service
+modules — simpler for this size of project and `go.work` is gitignored anyway.
 
 ### Phase 2 — Full Event Chain + Ingress
 - [ ] not started
