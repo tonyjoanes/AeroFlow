@@ -17,6 +17,13 @@ const (
 	SubjectGateAssigned = "aeroflow.gates.assigned"
 )
 
+// StreamName is the JetStream stream every AeroFlow service publishes to and
+// consumes from.
+const StreamName = "AEROFLOW"
+
+// streamSubjects is the wildcard the AEROFLOW stream captures.
+const streamSubjects = "aeroflow.>"
+
 // Client wraps a NATS connection and JetStream context for publish/subscribe.
 type Client struct {
 	conn *nats.Conn
@@ -34,6 +41,14 @@ func Connect(url string) (*Client, error) {
 	if err != nil {
 		conn.Close()
 		return nil, fmt.Errorf("create jetstream context: %w", err)
+	}
+
+	if _, err := js.CreateOrUpdateStream(context.Background(), jetstream.StreamConfig{
+		Name:     StreamName,
+		Subjects: []string{streamSubjects},
+	}); err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("create or update stream %s: %w", StreamName, err)
 	}
 
 	return &Client{conn: conn, js: js}, nil
