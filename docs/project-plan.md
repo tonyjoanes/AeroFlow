@@ -66,6 +66,38 @@ Complete the domain event chain so a flight landing cascades through all service
 
 ---
 
+## Phase 2.5 — Web Dashboards (2–3 weekends)
+
+Build two real-time web dashboards consuming NATS events: one for passengers/public, one for operations staff. Both use Go templates with WebSocket or SSE for live updates.
+
+**flight-board-web** (Separate Go service)
+- Real-time flight status board: departures, arrivals, delays, gates
+- Baggage carousel assignments and status
+- Gate information: current assignment, next flight
+- WebSocket subscription to NATS stream for live updates
+- Simple HTML/CSS responsive design (works on airport displays and phones)
+- Route: `/board` main display, `/status/:flight-id` for flight details
+- Consume events: FLIGHT_LANDED, GATE_ASSIGNED, BAGGAGE_STARTED, CAROUSEL_ASSIGNED
+
+**ops-dashboard-web** (Separate Go service or integrated with platform-api)
+- Unified view for ramp/ground operations
+- Active flights: gate status, crew assignments, baggage queues
+- Carousel status: which bags on which carousel, completion %
+- Turnaround metrics: ground time elapsed, next flight readiness
+- Service health per namespace (link to platform-api `/health`)
+- Event log: recent events with timestamps and correlation IDs
+- WebSocket to NATS for live updates; same events plus CREW_DISPATCHED, TURNAROUND_COMPLETE
+
+**Shared patterns**
+- Both services subscribe to NATS from Go (shared `internal/messaging`)
+- Broadcast events to connected clients via WebSocket (or SSE for simpler approach)
+- Graceful reconnect on connection loss
+- No JavaScript framework — vanilla JS for interactivity where needed
+
+**Phase complete when**: Flight board displays live flight status updated in real-time, ops dashboard shows full ground operations view with baggage/carousel queues, both accessible via ingress, seed program updates visible immediately on both dashboards.
+
+---
+
 ## Phase 3 — Observability (3–4 weekends)
 
 Metrics first, then structured logs, then distributed traces. Each layer reveals something the previous one couldn't.
@@ -129,6 +161,39 @@ Build the IDP control plane: a Go API reading Kubernetes state, a simple ops das
 
 ---
 
+## Phase 4.5 — Self-Service Layer (2–3 weekends)
+
+Empower developers to provision and manage their own services without platform team involvement. Turn the ops API into a true IDP.
+
+**Service templates**
+- Go module templates for Go+NATS service
+- Scaffold generator: `aeroctl service create --name my-service --template go-nats`
+- Creates service directory structure, Dockerfile, Kubernetes manifests, basic handlers
+- Templates include stub messaging, `/health`, `/metrics`, NATS subscription
+
+**Self-service provisioning**
+- `aeroctl namespace create [squad-name]` — creates namespace with ResourceQuota, LimitRange, ServiceAccount
+- Auto-provision NATS consumer groups per service
+- Auto-wire RBAC: service SA can only read its configmap and write NATS
+- Generate ConfigMap with cluster endpoints (NATS, prometheus, etc)
+
+**Deployment workflow**
+- `aeroctl service deploy --service my-service --image [tag]`
+- Validates image exists in registry
+- Patches Deployment in target namespace
+- Waits for rollout, reports status
+- Integrates with seed program for smoke tests
+
+**Developer dashboard enhancements**
+- "New service" button that guides through scaffold + provisioning
+- Service quick-links: logs, metrics, traces, recent deployments
+- Event subscriptions per service: filter/subscribe to NATS streams
+- Cost estimate per service based on requests/limits
+
+**Phase complete when**: Developer can `aeroctl service create --name taxi-booking`, get a working service in a namespace, and `aeroctl service deploy` it with zero platform team involvement.
+
+---
+
 ## Phase 5 — Stretch Goals (ongoing)
 
 Pick from these once the core is solid. Each is a self-contained learning spike.
@@ -157,9 +222,11 @@ Pick from these once the core is solid. Each is a self-contained learning spike.
 
 - Weekends 1–2: cluster up, Phase 1 services talking over NATS
 - Weekends 3–4: full event chain, ingress, seed program
-- Weekends 5–8: full observability stack
-- Weekends 9–11: platform API, UI, aeroctl CLI
-- Weekend 12+: stretch goals as interest develops
+- Weekends 5–6: flight board and ops dashboards (real-time web UIs)
+- Weekends 7–10: full observability stack (metrics, logs, traces)
+- Weekends 11–13: platform API, UI, aeroctl CLI
+- Weekends 14–16: self-service layer (scaffold, provisioning, deployment workflow)
+- Weekend 17+: stretch goals as interest develops
 
 ---
 
