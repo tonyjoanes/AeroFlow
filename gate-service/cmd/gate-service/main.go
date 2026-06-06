@@ -15,10 +15,7 @@ import (
 	"github.com/tonyjoanes/aeroflow/internal/server"
 )
 
-const (
-	streamName  = "AEROFLOW"
-	durableName = "gate-service-flight-landed"
-)
+const durableName = "gate-service-flight-landed"
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
@@ -33,7 +30,7 @@ func main() {
 	defer client.Close()
 
 	ctx := context.Background()
-	consumeCtx, err := client.Consume(ctx, streamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client))
+	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client))
 	if err != nil {
 		logger.Error("failed to start consumer", "error", err)
 		os.Exit(1)
