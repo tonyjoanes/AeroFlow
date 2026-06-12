@@ -50,7 +50,18 @@ modules — simpler for this size of project and `go.work` is gitignored anyway.
 - [ ] scale flight-service to 3 replicas
 
 ### Phase 3 — Observability
-- [ ] not started
+- [x] Custom Prometheus counters and histograms in every service (internal/metrics)
+- [x] HTTP request metrics via instrumented mux wrapper
+- [x] Structured JSON logging via slog with correlation IDs (all services)
+- [x] OpenTelemetry tracing (internal/tracing) — spans across HTTP → NATS publish → consume
+- [x] Trace context propagated through NATS message headers
+- [x] No-op tracer when OTEL_EXPORTER_OTLP_ENDPOINT is unset (local dev safe)
+- [x] kube-prometheus-stack Helm values (deploy/observability/)
+- [x] ServiceMonitor for every service namespace
+- [x] Loki + Promtail Helm values
+- [x] Tempo Helm values (OTLP/HTTP receiver on :4318)
+- [ ] Grafana dashboards (per-service event rates, NATS queue depth)
+- [ ] Exemplars linking metrics → traces → logs
 
 ### Phase 4 — Platform Layer
 - [ ] not started

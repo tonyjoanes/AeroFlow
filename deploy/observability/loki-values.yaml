@@ -1,0 +1,22 @@
+# Helm values for Grafana Loki (single-binary / monolithic mode).
+# Install with:
+#   helm repo add grafana https://grafana.github.io/helm-charts
+#   helm install loki grafana/loki \
+#     --namespace platform --values deploy/observability/loki-values.yaml
+
+loki:
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1
+  storage:
+    type: filesystem
+
+singleBinary:
+  replicas: 1
+
+# Promtail ships pod logs to Loki.
+promtail:
+  enabled: true
+  config:
+    clients:
+      - url: http://loki.platform.svc.cluster.local:3100/loki/api/v1/push

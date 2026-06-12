@@ -10,16 +10,33 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/tonyjoanes/aeroflow/internal/messaging"
+	"github.com/tonyjoanes/aeroflow/internal/metrics"
 	"github.com/tonyjoanes/aeroflow/internal/models"
 	"github.com/tonyjoanes/aeroflow/internal/server"
+	"github.com/tonyjoanes/aeroflow/internal/tracing"
 )
 
-const durableName = "turnaround-service-flight-landed"
+const (
+	serviceName = "turnaround-service"
+	durableName = "turnaround-service-flight-landed"
+)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, serviceName)
+	if err != nil {
+		logger.Error("failed to init tracing", "error", err)
+		os.Exit(1)
+	}
+	defer shutdown()
+
+	svc := metrics.New(serviceName)
 
 	client, err := messaging.Connect(envOr("NATS_URL", "nats://localhost:4222"))
 	if err != nil {
@@ -28,8 +45,7 @@ func main() {
 	}
 	defer client.Close()
 
-	ctx := context.Background()
-	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client))
+	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client, svc))
 	if err != nil {
 		logger.Error("failed to start consumer", "error", err)
 		os.Exit(1)
@@ -38,20 +54,30 @@ func main() {
 
 	addr := envOr("HTTP_ADDR", ":8084")
 	logger.Info("turnaround-service listening", "addr", addr)
-	if err := http.ListenAndServe(addr, server.Mux()); err != nil {
+	if err := http.ListenAndServe(addr, svc.InstrumentMux(server.Mux())); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-// handleFlightLanded starts ground ops coordination for the landed aircraft
-// and publishes TurnaroundStartedEvent.
-func handleFlightLanded(logger *slog.Logger, client *messaging.Client) messaging.Handler {
+func handleFlightLanded(logger *slog.Logger, client *messaging.Client, svc *metrics.ServiceMetrics) messaging.Handler {
+	tracer := tracing.Tracer(serviceName)
+
 	return func(ctx context.Context, data []byte) error {
+		ctx, span := tracer.Start(ctx, "turnaround.start")
+		defer span.End()
+		done := svc.ObserveConsume(messaging.SubjectFlightLanded)
+
 		var event models.FlightEvent
 		if err := json.Unmarshal(data, &event); err != nil {
-			return fmt.Errorf("decode flight event: %w", err)
+			err = fmt.Errorf("decode flight event: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
+
+		span.SetAttributes(attribute.String("flight.number", event.Flight.Number))
 
 		now := time.Now().UTC()
 		turnaround := models.Turnaround{
@@ -70,9 +96,15 @@ func handleFlightLanded(logger *slog.Logger, client *messaging.Client) messaging
 			OccurredAt:    now,
 		}
 		if err := client.Publish(publishCtx, messaging.SubjectTurnaroundStarted, evt); err != nil {
-			return fmt.Errorf("publish turnaround started: %w", err)
+			err = fmt.Errorf("publish turnaround started: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
 
+		svc.RecordPublish(messaging.SubjectTurnaroundStarted)
+		done(nil)
 		logger.Info("turnaround started",
 			"flight", event.Flight.Number,
 			"turnaround_id", turnaround.ID,

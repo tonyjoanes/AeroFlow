@@ -9,6 +9,7 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel"
 )
 
 // Subject prefixes used across the AeroFlow event chain (aeroflow.>).
@@ -28,7 +29,30 @@ const StreamName = "AEROFLOW"
 // streamSubjects is the wildcard the AEROFLOW stream captures.
 const streamSubjects = "aeroflow.>"
 
-// Client wraps a NATS connection and JetStream context for publish/subscribe.
+// natsCarrier adapts nats.Header (map[string][]string) to the
+// propagation.TextMapCarrier interface, which works with map[string]string.
+type natsCarrier nats.Header
+
+func (c natsCarrier) Get(key string) string {
+	vals := nats.Header(c).Values(key)
+	if len(vals) == 0 {
+		return ""
+	}
+	return vals[0]
+}
+
+func (c natsCarrier) Set(key, value string) {
+	nats.Header(c).Set(key, value)
+}
+
+func (c natsCarrier) Keys() []string {
+	keys := make([]string, 0, len(c))
+	for k := range c {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 type Client struct {
 	conn *nats.Conn
 	js   jetstream.JetStream
@@ -63,14 +87,23 @@ func (c *Client) Close() {
 	c.conn.Close()
 }
 
-// Publish marshals payload as JSON and publishes it to subject.
+// Publish marshals payload as JSON and publishes it to subject, injecting
+// the current trace context into NATS message headers so downstream
+// consumers can continue the trace.
 func (c *Client) Publish(ctx context.Context, subject string, payload any) error {
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("marshal payload for %s: %w", subject, err)
 	}
 
-	if _, err := c.js.Publish(ctx, subject, data); err != nil {
+	msg := &nats.Msg{
+		Subject: subject,
+		Data:    data,
+		Header:  make(nats.Header),
+	}
+	otel.GetTextMapPropagator().Inject(ctx, natsCarrier(msg.Header))
+
+	if _, err := c.js.PublishMsg(ctx, msg); err != nil {
 		return fmt.Errorf("publish to %s: %w", subject, err)
 	}
 
@@ -82,7 +115,8 @@ func (c *Client) Publish(ctx context.Context, subject string, payload any) error
 type Handler func(ctx context.Context, data []byte) error
 
 // Consume creates (or reuses) a durable consumer on stream for subject and
-// invokes handler for every message, acking on success.
+// invokes handler for every message, extracting trace context from headers
+// and acking on success.
 func (c *Client) Consume(ctx context.Context, stream, durable, subject string, handler Handler) (jetstream.ConsumeContext, error) {
 	consumer, err := c.js.CreateOrUpdateConsumer(ctx, stream, jetstream.ConsumerConfig{
 		Durable:       durable,
@@ -94,7 +128,10 @@ func (c *Client) Consume(ctx context.Context, stream, durable, subject string, h
 	}
 
 	return consumer.Consume(func(msg jetstream.Msg) {
-		if err := handler(ctx, msg.Data()); err != nil {
+		// Extract trace context from NATS headers so this span is a child
+		// of the publisher's span.
+		msgCtx := otel.GetTextMapPropagator().Extract(ctx, natsCarrier(msg.Headers()))
+		if err := handler(msgCtx, msg.Data()); err != nil {
 			_ = msg.Nak()
 			return
 		}

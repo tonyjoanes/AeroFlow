@@ -10,15 +10,33 @@ import (
 	"os"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/tonyjoanes/aeroflow/internal/messaging"
+	"github.com/tonyjoanes/aeroflow/internal/metrics"
 	"github.com/tonyjoanes/aeroflow/internal/models"
 	"github.com/tonyjoanes/aeroflow/internal/server"
+	"github.com/tonyjoanes/aeroflow/internal/tracing"
 )
 
-const durableName = "crew-dispatch-service-flight-landed"
+const (
+	serviceName = "crew-dispatch-service"
+	durableName = "crew-dispatch-service-flight-landed"
+)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, serviceName)
+	if err != nil {
+		logger.Error("failed to init tracing", "error", err)
+		os.Exit(1)
+	}
+	defer shutdown()
+
+	svc := metrics.New(serviceName)
 
 	client, err := messaging.Connect(envOr("NATS_URL", "nats://localhost:4222"))
 	if err != nil {
@@ -27,8 +45,7 @@ func main() {
 	}
 	defer client.Close()
 
-	ctx := context.Background()
-	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client))
+	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectFlightLanded, handleFlightLanded(logger, client, svc))
 	if err != nil {
 		logger.Error("failed to start consumer", "error", err)
 		os.Exit(1)
@@ -37,20 +54,30 @@ func main() {
 
 	addr := envOr("HTTP_ADDR", ":8085")
 	logger.Info("crew-dispatch-service listening", "addr", addr)
-	if err := http.ListenAndServe(addr, server.Mux()); err != nil {
+	if err := http.ListenAndServe(addr, svc.InstrumentMux(server.Mux())); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-// handleFlightLanded assigns a crew to the landed aircraft and publishes
-// CrewAssignedEvent.
-func handleFlightLanded(logger *slog.Logger, client *messaging.Client) messaging.Handler {
+func handleFlightLanded(logger *slog.Logger, client *messaging.Client, svc *metrics.ServiceMetrics) messaging.Handler {
+	tracer := tracing.Tracer(serviceName)
+
 	return func(ctx context.Context, data []byte) error {
+		ctx, span := tracer.Start(ctx, "crew.dispatch")
+		defer span.End()
+		done := svc.ObserveConsume(messaging.SubjectFlightLanded)
+
 		var event models.FlightEvent
 		if err := json.Unmarshal(data, &event); err != nil {
-			return fmt.Errorf("decode flight event: %w", err)
+			err = fmt.Errorf("decode flight event: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
+
+		span.SetAttributes(attribute.String("flight.number", event.Flight.Number))
 
 		now := time.Now().UTC()
 		assignment := models.CrewAssignment{
@@ -68,9 +95,15 @@ func handleFlightLanded(logger *slog.Logger, client *messaging.Client) messaging
 			OccurredAt:    now,
 		}
 		if err := client.Publish(publishCtx, messaging.SubjectCrewAssigned, evt); err != nil {
-			return fmt.Errorf("publish crew assigned: %w", err)
+			err = fmt.Errorf("publish crew assigned: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
 
+		svc.RecordPublish(messaging.SubjectCrewAssigned)
+		done(nil)
 		logger.Info("crew dispatched",
 			"flight", event.Flight.Number,
 			"crew_count", len(assignment.Crew),
@@ -80,8 +113,6 @@ func handleFlightLanded(logger *slog.Logger, client *messaging.Client) messaging
 	}
 }
 
-// dispatchCrew builds a deterministic crew roster from the flight number.
-// Real allocation would check availability and qualifications.
 func dispatchCrew(flightNumber string) []models.CrewMember {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(flightNumber))

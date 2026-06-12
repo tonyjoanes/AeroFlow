@@ -1,0 +1,30 @@
+# Helm values for kube-prometheus-stack.
+# Install with:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm install kube-prometheus-stack prometheus-community/kube-prometheus-stack \
+#     --namespace platform --values deploy/observability/prometheus-values.yaml
+
+grafana:
+  enabled: true
+  adminPassword: aeroflow
+  service:
+    type: NodePort
+    nodePort: 30300
+
+  # Pre-configure Tempo and Loki as Grafana data sources.
+  additionalDataSources:
+    - name: Tempo
+      type: tempo
+      url: http://tempo.platform.svc.cluster.local:3100
+      access: proxy
+    - name: Loki
+      type: loki
+      url: http://loki.platform.svc.cluster.local:3100
+      access: proxy
+
+prometheus:
+  prometheusSpec:
+    # Pick up ServiceMonitors from every namespace.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}

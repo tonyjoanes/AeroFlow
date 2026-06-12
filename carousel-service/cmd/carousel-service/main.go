@@ -10,15 +10,33 @@ import (
 	"os"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+
 	"github.com/tonyjoanes/aeroflow/internal/messaging"
+	"github.com/tonyjoanes/aeroflow/internal/metrics"
 	"github.com/tonyjoanes/aeroflow/internal/models"
 	"github.com/tonyjoanes/aeroflow/internal/server"
+	"github.com/tonyjoanes/aeroflow/internal/tracing"
 )
 
-const durableName = "carousel-service-baggage-started"
+const (
+	serviceName = "carousel-service"
+	durableName = "carousel-service-baggage-started"
+)
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+
+	ctx := context.Background()
+	shutdown, err := tracing.Init(ctx, serviceName)
+	if err != nil {
+		logger.Error("failed to init tracing", "error", err)
+		os.Exit(1)
+	}
+	defer shutdown()
+
+	svc := metrics.New(serviceName)
 
 	client, err := messaging.Connect(envOr("NATS_URL", "nats://localhost:4222"))
 	if err != nil {
@@ -27,8 +45,7 @@ func main() {
 	}
 	defer client.Close()
 
-	ctx := context.Background()
-	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectBaggageStarted, handleBaggageStarted(logger, client))
+	consumeCtx, err := client.Consume(ctx, messaging.StreamName, durableName, messaging.SubjectBaggageStarted, handleBaggageStarted(logger, client, svc))
 	if err != nil {
 		logger.Error("failed to start consumer", "error", err)
 		os.Exit(1)
@@ -37,20 +54,30 @@ func main() {
 
 	addr := envOr("HTTP_ADDR", ":8083")
 	logger.Info("carousel-service listening", "addr", addr)
-	if err := http.ListenAndServe(addr, server.Mux()); err != nil {
+	if err := http.ListenAndServe(addr, svc.InstrumentMux(server.Mux())); err != nil {
 		logger.Error("server stopped", "error", err)
 		os.Exit(1)
 	}
 }
 
-// handleBaggageStarted assigns a carousel to the baggage job and publishes
-// CarouselAssignedEvent.
-func handleBaggageStarted(logger *slog.Logger, client *messaging.Client) messaging.Handler {
+func handleBaggageStarted(logger *slog.Logger, client *messaging.Client, svc *metrics.ServiceMetrics) messaging.Handler {
+	tracer := tracing.Tracer(serviceName)
+
 	return func(ctx context.Context, data []byte) error {
+		ctx, span := tracer.Start(ctx, "carousel.assign")
+		defer span.End()
+		done := svc.ObserveConsume(messaging.SubjectBaggageStarted)
+
 		var event models.BaggageStartedEvent
 		if err := json.Unmarshal(data, &event); err != nil {
-			return fmt.Errorf("decode baggage started event: %w", err)
+			err = fmt.Errorf("decode baggage started event: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
+
+		span.SetAttributes(attribute.String("flight.number", event.Job.FlightNumber))
 
 		now := time.Now().UTC()
 		assignment := models.CarouselAssignment{
@@ -69,9 +96,15 @@ func handleBaggageStarted(logger *slog.Logger, client *messaging.Client) messagi
 			OccurredAt:    now,
 		}
 		if err := client.Publish(publishCtx, messaging.SubjectCarouselAssigned, evt); err != nil {
-			return fmt.Errorf("publish carousel assigned: %w", err)
+			err = fmt.Errorf("publish carousel assigned: %w", err)
+			done(err)
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
 		}
 
+		svc.RecordPublish(messaging.SubjectCarouselAssigned)
+		done(nil)
 		logger.Info("carousel assigned",
 			"flight", event.Job.FlightNumber,
 			"carousel", assignment.Carousel.ID,
@@ -81,7 +114,6 @@ func handleBaggageStarted(logger *slog.Logger, client *messaging.Client) messagi
 	}
 }
 
-// assignCarousel deterministically picks a carousel from the flight number.
 func assignCarousel(flightNumber string) models.Carousel {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(flightNumber))
