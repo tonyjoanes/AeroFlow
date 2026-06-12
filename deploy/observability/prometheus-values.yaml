@@ -11,16 +11,42 @@ grafana:
     type: NodePort
     nodePort: 30300
 
+  # Sidecar discovers ConfigMaps with label grafana_dashboard=1 and loads
+  # them automatically. Run deploy/observability/apply-dashboards.sh after
+  # the stack is up.
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+      label: grafana_dashboard
+      labelValue: "1"
+
   # Pre-configure Tempo and Loki as Grafana data sources.
   additionalDataSources:
     - name: Tempo
       type: tempo
       url: http://tempo.platform.svc.cluster.local:3100
       access: proxy
+      jsonData:
+        tracesToLogsV2:
+          datasourceUid: loki
+          spanStartTimeShift: "-1m"
+          spanEndTimeShift: "1m"
+          filterByTraceID: true
+        serviceMap:
+          datasourceUid: prometheus
+        nodeGraph:
+          enabled: true
     - name: Loki
       type: loki
       url: http://loki.platform.svc.cluster.local:3100
       access: proxy
+      jsonData:
+        derivedFields:
+          - name: TraceID
+            matcherRegex: '"traceID":"(\w+)"'
+            url: "$${__value.raw}"
+            datasourceUid: tempo
 
 prometheus:
   prometheusSpec:

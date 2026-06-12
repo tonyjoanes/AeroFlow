@@ -1,0 +1,49 @@
+{
+  "title": "AeroFlow — Trace Explorer",
+  "uid": "aeroflow-trace-explorer",
+  "tags": ["aeroflow"],
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Trace Search — Full Event Chain",
+      "type": "traces",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 16 },
+      "datasource": "Tempo",
+      "targets": [
+        {
+          "queryType": "traceql",
+          "query": "{ resource.service.name =~ \"flight-service|gate-service|baggage-service|carousel-service|turnaround-service|crew-dispatch-service|notification-service\" }",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Span Duration by Service — p95",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "datasource": "Tempo",
+      "targets": [
+        {
+          "queryType": "traceql",
+          "query": "{ } | rate()",
+          "legendFormat": "span rate"
+        }
+      ],
+      "description": "Use TraceQL in Tempo to drill into specific correlation IDs. Filter by resource.service.name to isolate a single service."
+    },
+    {
+      "id": 3,
+      "title": "How to use this dashboard",
+      "type": "text",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Tracing a single flight\n\n1. Fire a flight via the seed program or curl.\n2. Copy the `correlation_id` from the logs.\n3. In the **Trace Search** panel above, filter by that trace ID to see the full waterfall across all services.\n\nEach span carries `flight.number` and `correlation.id` attributes so you can navigate:\n- **Metrics → Traces**: use exemplars on the event rate panels (Event Chain dashboard)\n- **Traces → Logs**: click a span, then \"Logs for this span\" to jump to Loki\n- **Logs → Traces**: use `{app=\"flight-service\"} | json | traceID != \"\"` in Loki\n\n## TraceQL examples\n\n```\n# All spans for a specific flight\n{ span.flight.number = \"BA442\" }\n\n# Slow processing (> 100ms)\n{ duration > 100ms }\n\n# Errors only\n{ status = error }\n```"
+      }
+    }
+  ],
+  "schemaVersion": 38
+}

@@ -1,0 +1,111 @@
+{
+  "title": "AeroFlow — Service Detail",
+  "uid": "aeroflow-service-detail",
+  "tags": ["aeroflow"],
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(aeroflow_http_requests_total, service)",
+        "refresh": 2,
+        "multi": false,
+        "includeAll": false,
+        "label": "Service"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "HTTP Request Rate",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (method, path, status) (rate(aeroflow_http_requests_total{service=\"$service\"}[1m]))",
+          "legendFormat": "{{method}} {{path}} {{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 2,
+      "title": "HTTP Latency — p50 / p95 / p99",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(aeroflow_http_request_duration_seconds_bucket{service=\"$service\"}[1m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(aeroflow_http_request_duration_seconds_bucket{service=\"$service\"}[1m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(aeroflow_http_request_duration_seconds_bucket{service=\"$service\"}[1m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 3,
+      "title": "Events Consumed — Rate by Subject",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (subject, result) (rate(aeroflow_events_consumed_total{service=\"$service\"}[1m]))",
+          "legendFormat": "{{subject}} ({{result}})"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 4,
+      "title": "Events Published — Rate by Subject",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (subject) (rate(aeroflow_events_published_total{service=\"$service\"}[1m]))",
+          "legendFormat": "{{subject}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 5,
+      "title": "Processing Latency Heatmap",
+      "type": "heatmap",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(aeroflow_event_processing_duration_seconds_bucket{service=\"$service\"}[1m]))",
+          "legendFormat": "{{le}}",
+          "format": "heatmap"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "s" } }
+    },
+    {
+      "id": 6,
+      "title": "Logs",
+      "type": "logs",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "datasource": "Loki",
+      "targets": [
+        {
+          "expr": "{app=\"$service\"}",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38
+}

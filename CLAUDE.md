@@ -60,8 +60,8 @@ modules — simpler for this size of project and `go.work` is gitignored anyway.
 - [x] ServiceMonitor for every service namespace
 - [x] Loki + Promtail Helm values
 - [x] Tempo Helm values (OTLP/HTTP receiver on :4318)
-- [ ] Grafana dashboards (per-service event rates, NATS queue depth)
-- [ ] Exemplars linking metrics → traces → logs
+- [x] Grafana dashboards — event-chain (rates, latency, errors), service-detail (HTTP + heatmap + logs panel), trace-explorer (TraceQL examples)
+- [x] Exemplars wired: Tempo traces→logs (Loki), Loki logs→traces (traceID derived field), Prometheus→Tempo service map
 
 ### Phase 4 — Platform Layer
 - [ ] not started
