@@ -13,8 +13,12 @@ import (
 
 // Subject prefixes used across the AeroFlow event chain (aeroflow.>).
 const (
-	SubjectFlightLanded = "aeroflow.flights.landed"
-	SubjectGateAssigned = "aeroflow.gates.assigned"
+	SubjectFlightLanded      = "aeroflow.flights.landed"
+	SubjectGateAssigned      = "aeroflow.gates.assigned"
+	SubjectBaggageStarted    = "aeroflow.baggage.started"
+	SubjectCarouselAssigned  = "aeroflow.carousel.assigned"
+	SubjectTurnaroundStarted = "aeroflow.turnaround.started"
+	SubjectCrewAssigned      = "aeroflow.crew.assigned"
 )
 
 // StreamName is the JetStream stream every AeroFlow service publishes to and

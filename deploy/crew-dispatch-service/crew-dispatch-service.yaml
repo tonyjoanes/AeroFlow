@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: crew-dispatch-service-config
+  namespace: ground-ops
+data:
+  NATS_URL: "nats://nats.platform.svc.cluster.local:4222"
+  HTTP_ADDR: ":8085"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crew-dispatch-service
+  namespace: ground-ops
+  labels:
+    app: crew-dispatch-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crew-dispatch-service
+  template:
+    metadata:
+      labels:
+        app: crew-dispatch-service
+    spec:
+      containers:
+        - name: crew-dispatch-service
+          image: aeroflow/crew-dispatch-service:dev
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: crew-dispatch-service-config
+          ports:
+            - name: http
+              containerPort: 8085
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crew-dispatch-service
+  namespace: ground-ops
+spec:
+  selector:
+    app: crew-dispatch-service
+  ports:
+    - name: http
+      port: 8085
+      targetPort: http

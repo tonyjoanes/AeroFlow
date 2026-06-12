@@ -40,7 +40,14 @@ Note: used a single Go module for the monorepo rather than go.work + per-service
 modules — simpler for this size of project and `go.work` is gitignored anyway.
 
 ### Phase 2 — Full Event Chain + Ingress
-- [ ] not started
+- [x] baggage-service (LANDED → creates job → publishes BAGGAGE_STARTED)
+- [x] carousel-service (BAGGAGE_STARTED → assigns carousel → publishes CAROUSEL_ASSIGNED)
+- [x] turnaround-service (LANDED → starts ground ops → publishes TURNAROUND_STARTED)
+- [x] crew-dispatch-service (LANDED → assigns crew → publishes CREW_ASSIGNED)
+- [x] notification-service (fan-out subscriber on aeroflow.>)
+- [ ] seed program (hack/seed/)
+- [ ] NGINX ingress + TLS
+- [ ] scale flight-service to 3 replicas
 
 ### Phase 3 — Observability
 - [ ] not started
