@@ -45,8 +45,8 @@ modules — simpler for this size of project and `go.work` is gitignored anyway.
 - [x] turnaround-service (LANDED → starts ground ops → publishes TURNAROUND_STARTED)
 - [x] crew-dispatch-service (LANDED → assigns crew → publishes CREW_ASSIGNED)
 - [x] notification-service (fan-out subscriber on aeroflow.>)
-- [ ] seed program (hack/seed/)
-- [ ] NGINX ingress + TLS
+- [x] seed program (hack/seed/) — --burst and --interval modes
+- [x] NGINX ingress + TLS (cert-manager self-signed, deploy/ingress/)
 - [ ] scale flight-service to 3 replicas
 
 ### Phase 3 — Observability

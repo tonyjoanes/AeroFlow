@@ -1,0 +1,27 @@
+# Path-based ingress for the AeroFlow API surface.
+# Requires: NGINX ingress controller + cert-manager installed (see deploy/README.md).
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aeroflow
+  namespace: flights
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    cert-manager.io/cluster-issuer: selfsigned
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - aeroflow.local
+      secretName: aeroflow-tls
+  rules:
+    - host: aeroflow.local
+      http:
+        paths:
+          - path: /api/flights(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: flight-service
+                port:
+                  name: http
