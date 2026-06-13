@@ -72,4 +72,8 @@ modules — simpler for this size of project and `go.work` is gitignored anyway.
 - [x] deploy/platform — Deployment, Service, NodePort (30090→9000), RBAC manifests
 
 ### Phase 5 — Stretch Goals
-- [ ] not started
+- [x] Airport simulator (hack/simulator/) — fixed fleet of 20 aircraft cycling endlessly through SCHEDULED → BOARDING → DEPARTED → IN_FLIGHT → LANDED → turnaround → repeat. Configurable --speed multiplier. Live flight board updates via SSE.
+- [ ] HPA on flight-service
+- [ ] ResourceQuota / LimitRange per namespace
+- [ ] NetworkPolicy
+- [ ] Chaos testing

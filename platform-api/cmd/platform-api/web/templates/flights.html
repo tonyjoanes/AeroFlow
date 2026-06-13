@@ -1,46 +1,138 @@
 {{template "base.html" .}}
 {{define "title"}}Flight Board{{end}}
 {{define "content"}}
-<h1>Flight Board</h1>
-<p style="color:var(--muted);margin-bottom:24px;font-size:13px;">
-  Recent flights processed by the event chain. Fire new ones with
-  <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;">
-    go run ./hack/seed --burst --flights 20
-  </code>
-</p>
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+  <h1 style="margin:0;">Flight Board</h1>
+  <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);">
+    <span class="dot dot-green" style="animation:pulse 2s infinite;"></span>
+    <span id="status">Live</span>
+    &nbsp;·&nbsp;
+    <span id="count">{{len .Flights}}</span> flights tracked
+  </div>
+</div>
 
-<div class="card">
-  {{if .Flights}}
-  <table>
+<div class="card" style="padding:0;overflow:hidden;">
+  <table id="board">
     <thead>
       <tr>
-        <th>Flight</th><th>Origin</th><th>Destination</th>
+        <th>Flight</th><th>Origin</th><th>→</th><th>Destination</th>
         <th>Status</th><th>Gate</th><th>Carousel</th><th>Updated</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody id="rows">
       {{range .Flights}}
-      <tr>
-        <td style="font-weight:600;">{{.Number}}</td>
+      <tr data-flight="{{.Number}}">
+        <td style="font-weight:600;font-family:monospace;">{{.Number}}</td>
         <td>{{.Origin}}</td>
+        <td style="color:var(--muted);">→</td>
         <td>{{.Destination}}</td>
-        <td>
-          <span class="badge {{statusBadge .Status}}">{{.Status}}</span>
-        </td>
-        <td style="color:var(--muted);">{{.Gate}}</td>
-        <td style="color:var(--muted);">{{.Carousel}}</td>
+        <td><span class="badge {{statusBadge .Status}}">{{.Status}}</span></td>
+        <td style="color:var(--muted);font-family:monospace;font-size:12px;">{{.Gate}}</td>
+        <td style="color:var(--muted);font-family:monospace;font-size:12px;">{{.Carousel}}</td>
         <td style="color:var(--muted);font-size:12px;">{{.UpdatedAt.Format "15:04:05"}}</td>
       </tr>
       {{end}}
     </tbody>
   </table>
-  {{else}}
-  <p style="color:var(--muted);font-size:13px;padding:16px 0;">
-    No flights yet — land one with
-    <code style="background:var(--bg);padding:2px 6px;border-radius:4px;">
-      curl -X POST localhost:8080/flights/land -d '{"number":"BA442","origin":"LHR","destination":"JFK"}'
+  {{if not .Flights}}
+  <p id="empty" style="color:var(--muted);font-size:13px;padding:24px;">
+    No flights yet — start the simulator:
+    <code style="background:var(--bg);padding:2px 8px;border-radius:4px;">
+      go run ./hack/simulator --speed 60
     </code>
   </p>
   {{end}}
 </div>
+
+<style>
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes flash { 0%{background:rgba(79,142,247,.15)} 100%{background:transparent} }
+  tr.flash { animation: flash 1s ease-out; }
+</style>
+
+<script>
+const statusBadge = {
+  SCHEDULED: 'badge-yellow',
+  BOARDING:  'badge-yellow',
+  DEPARTED:  'badge-yellow',
+  IN_FLIGHT: 'badge-yellow',
+  LANDED:    'badge-green',
+};
+
+const flights = {};
+const tbody = document.getElementById('rows');
+const countEl = document.getElementById('count');
+
+// Seed state from server-rendered rows on page load.
+tbody.querySelectorAll('tr[data-flight]').forEach(row => {
+  flights[row.dataset.flight] = row;
+});
+
+function flash(row) {
+  row.classList.remove('flash');
+  void row.offsetWidth;
+  row.classList.add('flash');
+}
+
+function upsertFlight(data) {
+  if (!data.flight?.number) return;
+  const f = data.flight;
+  const ts = new Date().toTimeString().slice(0, 8);
+  const badgeClass = statusBadge[f.status] || 'badge-yellow';
+
+  let row = flights[f.number];
+  if (!row) {
+    row = document.createElement('tr');
+    row.dataset.flight = f.number;
+    flights[f.number] = row;
+    tbody.prepend(row);
+    document.getElementById('empty')?.remove();
+    countEl.textContent = Object.keys(flights).length;
+  }
+
+  row.innerHTML = `
+    <td style="font-weight:600;font-family:monospace;">${f.number}</td>
+    <td>${f.origin || ''}</td>
+    <td style="color:var(--muted);">→</td>
+    <td>${f.destination || ''}</td>
+    <td><span class="badge ${badgeClass}">${f.status || ''}</span></td>
+    <td style="color:var(--muted);font-family:monospace;font-size:12px;">${row._gate || ''}</td>
+    <td style="color:var(--muted);font-family:monospace;font-size:12px;">${row._carousel || ''}</td>
+    <td style="color:var(--muted);font-size:12px;">${ts}</td>
+  `;
+  flash(row);
+}
+
+function patchGate(data) {
+  const fn = data.assignment?.flight_number;
+  const gateID = data.assignment?.gate?.id;
+  if (!fn || !gateID) return;
+  const row = flights[fn];
+  if (!row) return;
+  row._gate = gateID;
+  if (row.children[5]) { row.children[5].textContent = gateID; flash(row); }
+}
+
+function patchCarousel(data) {
+  const fn = data.assignment?.flight_number;
+  const carouselID = data.assignment?.carousel?.id;
+  if (!fn || !carouselID) return;
+  const row = flights[fn];
+  if (!row) return;
+  row._carousel = carouselID;
+  if (row.children[6]) { row.children[6].textContent = carouselID; flash(row); }
+}
+
+const es = new EventSource('/events/stream');
+es.onmessage = e => {
+  try {
+    const data = JSON.parse(e.data);
+    if (data.flight)      upsertFlight(data);
+    if (data.assignment?.gate)     patchGate(data);
+    if (data.assignment?.carousel) patchCarousel(data);
+  } catch(_) {}
+};
+es.onerror = () => { document.getElementById('status').textContent = 'Reconnecting…'; };
+es.onopen  = () => { document.getElementById('status').textContent = 'Live'; };
+</script>
 {{end}}

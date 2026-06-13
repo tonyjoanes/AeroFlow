@@ -14,6 +14,10 @@ import (
 
 // Subject prefixes used across the AeroFlow event chain (aeroflow.>).
 const (
+	SubjectFlightScheduled   = "aeroflow.flights.scheduled"
+	SubjectFlightBoarding    = "aeroflow.flights.boarding"
+	SubjectFlightDeparted    = "aeroflow.flights.departed"
+	SubjectFlightInFlight    = "aeroflow.flights.inflight"
 	SubjectFlightLanded      = "aeroflow.flights.landed"
 	SubjectGateAssigned      = "aeroflow.gates.assigned"
 	SubjectBaggageStarted    = "aeroflow.baggage.started"
