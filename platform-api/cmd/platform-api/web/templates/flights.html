@@ -1,0 +1,46 @@
+{{template "base.html" .}}
+{{define "title"}}Flight Board{{end}}
+{{define "content"}}
+<h1>Flight Board</h1>
+<p style="color:var(--muted);margin-bottom:24px;font-size:13px;">
+  Recent flights processed by the event chain. Fire new ones with
+  <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;">
+    go run ./hack/seed --burst --flights 20
+  </code>
+</p>
+
+<div class="card">
+  {{if .Flights}}
+  <table>
+    <thead>
+      <tr>
+        <th>Flight</th><th>Origin</th><th>Destination</th>
+        <th>Status</th><th>Gate</th><th>Carousel</th><th>Updated</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .Flights}}
+      <tr>
+        <td style="font-weight:600;">{{.Number}}</td>
+        <td>{{.Origin}}</td>
+        <td>{{.Destination}}</td>
+        <td>
+          <span class="badge {{statusBadge .Status}}">{{.Status}}</span>
+        </td>
+        <td style="color:var(--muted);">{{.Gate}}</td>
+        <td style="color:var(--muted);">{{.Carousel}}</td>
+        <td style="color:var(--muted);font-size:12px;">{{.UpdatedAt.Format "15:04:05"}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="color:var(--muted);font-size:13px;padding:16px 0;">
+    No flights yet — land one with
+    <code style="background:var(--bg);padding:2px 6px;border-radius:4px;">
+      curl -X POST localhost:8080/flights/land -d '{"number":"BA442","origin":"LHR","destination":"JFK"}'
+    </code>
+  </p>
+  {{end}}
+</div>
+{{end}}

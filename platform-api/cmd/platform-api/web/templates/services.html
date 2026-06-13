@@ -1,0 +1,67 @@
+{{template "base.html" .}}
+{{define "title"}}Services{{end}}
+{{define "content"}}
+<h1>Service Catalogue</h1>
+
+<div class="card" style="margin-bottom:24px;">
+  <div style="display:flex; gap:32px;">
+    <div class="stat">
+      <div class="stat-value">{{.TotalDeployments}}</div>
+      <div class="stat-label">Deployments</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color:{{if eq .Health "healthy"}}var(--green){{else}}var(--red){{end}}">
+        {{.Health}}
+      </div>
+      <div class="stat-label">Cluster Health</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{.ReadyCount}}</div>
+      <div class="stat-label">Ready</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" style="color:{{if gt .DegradedCount 0}}var(--red){{else}}var(--green){{end}}">
+        {{.DegradedCount}}
+      </div>
+      <div class="stat-label">Degraded</div>
+    </div>
+  </div>
+</div>
+
+{{range .Summaries}}
+<div class="card">
+  <div class="card-header">
+    <span class="card-title">{{.Namespace}}</span>
+    <span class="badge {{if allAvailable .Deployments}}badge-green{{else}}badge-red{{end}}">
+      <span class="dot {{if allAvailable .Deployments}}dot-green{{else}}dot-red{{end}}"></span>
+      {{len .Deployments}} deployment{{if ne (len .Deployments) 1}}s{{end}}
+    </span>
+  </div>
+  {{if .Deployments}}
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Image</th><th>Ready</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      {{range .Deployments}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td style="color:var(--muted);font-family:monospace;font-size:12px;">{{.Image}}</td>
+        <td>{{.Ready}}/{{.Desired}}</td>
+        <td>
+          {{if .Available}}
+            <span class="badge badge-green"><span class="dot dot-green"></span>Ready</span>
+          {{else}}
+            <span class="badge badge-red"><span class="dot dot-red"></span>Degraded</span>
+          {{end}}
+        </td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+  {{else}}
+  <p style="color:var(--muted);font-size:13px;">No deployments in this namespace.</p>
+  {{end}}
+</div>
+{{end}}
+{{end}}

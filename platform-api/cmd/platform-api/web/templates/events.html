@@ -1,0 +1,43 @@
+{{template "base.html" .}}
+{{define "title"}}Live Events{{end}}
+{{define "content"}}
+<h1>Live Event Feed</h1>
+<p style="color:var(--muted);margin-bottom:24px;font-size:13px;">
+  Real-time stream from NATS <code style="background:var(--surface);padding:2px 6px;border-radius:4px;font-size:12px;">aeroflow.&gt;</code>
+</p>
+
+<div class="card">
+  <div id="events" style="font-family:monospace;font-size:12px;max-height:600px;overflow-y:auto;">
+    <p style="color:var(--muted);">Connecting…</p>
+  </div>
+</div>
+
+<script>
+  const container = document.getElementById('events');
+  const es = new EventSource('/events/stream');
+  let first = true;
+
+  es.onmessage = (e) => {
+    if (first) { container.innerHTML = ''; first = false; }
+    const data = JSON.parse(e.data);
+    const row = document.createElement('div');
+    row.style.cssText = 'padding:6px 0;border-bottom:1px solid var(--border);display:flex;gap:16px;';
+    const ts = new Date(data.occurred_at || Date.now()).toISOString().slice(11,23);
+    row.innerHTML = `
+      <span style="color:var(--muted);min-width:90px;">${ts}</span>
+      <span style="color:var(--accent);min-width:200px;">${data.subject || ''}</span>
+      <span style="color:var(--muted);">${data.correlation_id || ''}</span>
+    `;
+    container.prepend(row);
+    // Keep at most 200 events visible.
+    while (container.children.length > 200) container.removeChild(container.lastChild);
+  };
+
+  es.onerror = () => {
+    const msg = document.createElement('p');
+    msg.style.color = 'var(--red)';
+    msg.textContent = 'Stream disconnected — reload to reconnect.';
+    container.prepend(msg);
+  };
+</script>
+{{end}}

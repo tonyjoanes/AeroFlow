@@ -64,7 +64,12 @@ modules — simpler for this size of project and `go.work` is gitignored anyway.
 - [x] Exemplars wired: Tempo traces→logs (Loki), Loki logs→traces (traceID derived field), Prometheus→Tempo service map
 
 ### Phase 4 — Platform Layer
-- [ ] not started
+- [x] platform-api/internal/k8s — client-go helpers (list deployments, aggregate health, patch image)
+- [x] GET /api/services, GET /api/health, GET /api/flights, POST /api/rollout
+- [x] platform-ui — Go templates served by platform-api (services catalogue, flight board, live event feed via SSE)
+- [x] RBAC — ServiceAccount + ClusterRole (least-privilege: list/watch deployments+pods, patch deployments)
+- [x] aeroctl CLI (cobra) — services list, health, flights status, rollout
+- [x] deploy/platform — Deployment, Service, NodePort (30090→9000), RBAC manifests
 
 ### Phase 5 — Stretch Goals
 - [ ] not started

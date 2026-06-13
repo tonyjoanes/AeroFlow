@@ -9,3 +9,11 @@ nodes:
       - containerPort: 30080
         hostPort: 8080
         protocol: TCP
+      # Expose platform-api UI + API.
+      - containerPort: 30090
+        hostPort: 9000
+        protocol: TCP
+      # Expose Grafana.
+      - containerPort: 30300
+        hostPort: 3000
+        protocol: TCP
